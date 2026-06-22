@@ -1,0 +1,60 @@
+RecycleVision Lite ML-Agents notes
+
+1. Open the project and let Unity finish importing packages.
+2. Build the polished scene with:
+   Tools > RecycleVision > Build Demo Scene
+   or
+   Tools > RecycleVision > Build Factory Demo Scene
+3. Open Assets/Scenes/RecycleVisionMain.unity and press Play.
+4. Training mode is the human-learning mode. You sort the spawned item manually and the AI suggestion is shown on screen.
+5. Quick Sort mode is the robot showcase mode. The AI suggestion is applied by the robotic arm, which carries the item into the predicted bin.
+6. The current playable project does NOT require ML training. It already uses the in-project suggestion system so the mechanics, UI, dashboard, and robot flow can all be demonstrated immediately.
+7. The scene now creates/configures RecycleVisionMlAgent automatically if it is missing. It uses:
+   - Behavior name: RecycleVisionSorter
+   - Observation: 84x84 RGB CameraSensor
+   - Vector observation: 13 values for item shape, primary colour, accent colour, and scale
+   - Action masking: recycling-rule masks remove impossible bin choices for obvious visual families
+   - Action: one discrete branch with 4 actions
+     0 = Plastic, 1 = Paper/Cardboard, 2 = Glass, 3 = Organic
+8. Before training in Unity, run:
+   Tools > RecycleVision > ML Agents > Use Trainer (Default)
+9. Python training command from PowerShell:
+   .\.venv-mlagents\Scripts\mlagents-learn.exe Assets/RecycleVision/ML/Configs/recyclevision_sorter_ppo.yaml --run-id recyclevision_sorter --force
+   Alternative if the environment is activated:
+   mlagents-learn Assets/RecycleVision/ML/Configs/recyclevision_sorter_ppo.yaml --run-id recyclevision_sorter --force
+10. When the terminal says "Start training by pressing the Play button in the Unity Editor", press Play with RecycleVisionMain open.
+11. During trainer runs, the ML action resolves the item automatically and advances to the next item. You do not need to manually drag items while training.
+12. Training stops when the yaml max_steps value is reached, not when the normal Unity session item target is reached. For a fast project demo run this is set to 50000 steps. If you stop with Ctrl+C, ML-Agents still keeps checkpoints and usually writes the latest ONNX model under results/<run-id>/.
+13. The default item pool now contains 33 waste definitions using the downloaded cardboard, food, glass, book/paper, and plastic prefabs. Rebuild the factory scene after definition changes so the serialized scene gets the latest pool:
+   Tools > RecycleVision > Build Factory Demo Scene
+14. To continue an interrupted run after lowering max_steps, use:
+   .\.venv-mlagents\Scripts\mlagents-learn.exe Assets/RecycleVision/ML/Configs/recyclevision_sorter_ppo.yaml --run-id recyclevision_sorter --resume
+15. After adding new prefab items, changing observations, or changing action masks, use a fresh run id so the policy learns the final setup from the beginning:
+   .\.venv-mlagents\Scripts\mlagents-learn.exe Assets/RecycleVision/ML/Configs/recyclevision_sorter_ppo.yaml --run-id recyclevision_sorter_masked_v2 --force
+16. After training, place the exported model at:
+   Assets/RecycleVision/Models/RecycleVisionSorter.onnx
+17. Then run:
+   Tools > RecycleVision > ML Agents > Use Inference (Model)
+
+Final accepted training run:
+- Run id: recyclevision_sorter_masked_v2
+- Max steps: 30000
+- Final mean reward: about 1.84
+- Quick Sort test result: 23 / 24
+- Model copied to Assets/RecycleVision/Models/RecycleVisionSorter.onnx
+
+Backend integration:
+- Start the local FastAPI backend before a demo session:
+  .\backend\run_backend.ps1
+- Unity posts completed sessions to:
+  http://127.0.0.1:8000/recyclevision/session
+- Logs include item features, true bin, selected bin, predicted bin, AI confidence, and the 13-value ML feature vector.
+- Analysis endpoints:
+  http://127.0.0.1:8000/recyclevision/sessions
+  http://127.0.0.1:8000/recyclevision/stats
+  http://127.0.0.1:8000/recyclevision/attempts.csv
+
+Recommended project order:
+Phase 1: run and polish the factory scene
+Phase 2: tune robot timing, props, labels, and camera feel
+Phase 3: train the ML-Agents model and swap the live suggestion source
